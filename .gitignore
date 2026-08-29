@@ -1,0 +1,16 @@
+# Node.js
+catering/node_modules/
+
+# Environment
+catering/.env
+
+# Upload pengguna
+catering/src/public/uploads/
+
+# File arsip
+catering/*.zip
+*.rar
+
+# Log
+*.log
+npm-debug.log*
