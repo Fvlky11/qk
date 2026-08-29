@@ -1,0 +1,419 @@
+-- ============================================================
+--  SCHEMA DATABASE: APLIKASI PEMESANAN & PENGIRIMAN KATERING
+--  Database: PostgreSQL
+--  Dibuat: 2026
+-- ============================================================
+
+-- Extension untuk UUID
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ============================================================
+-- ENUM TYPES
+-- ============================================================
+
+CREATE TYPE status_pemesanan AS ENUM (
+    'menunggu_konfirmasi',
+    'dikonfirmasi',
+    'diproses',
+    'siap_kirim',
+    'sedang_dikirim',
+    'selesai',
+    'dibatalkan'
+);
+
+CREATE TYPE status_pembayaran AS ENUM (
+    'menunggu',
+    'dp_dibayar',
+    'lunas',
+    'gagal',
+    'dikembalikan'
+);
+
+CREATE TYPE metode_pembayaran AS ENUM (
+    'transfer_bank',
+    'kartu_kredit',
+    'dompet_digital',
+    'tunai',
+    'qris'
+);
+
+CREATE TYPE status_pengiriman AS ENUM (
+    'menunggu_kurir',
+    'kurir_ditugaskan',
+    'sedang_disiapkan',
+    'dalam_perjalanan',
+    'tiba_di_lokasi',
+    'selesai',
+    'gagal'
+);
+
+CREATE TYPE kategori_menu AS ENUM (
+    'pembuka',
+    'makanan_utama',
+    'sayuran',
+    'minuman',
+    'penutup',
+    'snack'
+);
+
+-- ============================================================
+-- TABEL: PELANGGAN
+-- ============================================================
+
+CREATE TABLE pelanggan (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nama            VARCHAR(150)    NOT NULL,
+    email           VARCHAR(255)    NOT NULL UNIQUE,
+    no_hp           VARCHAR(20)     NOT NULL,
+    alamat          TEXT,
+    kota            VARCHAR(100),
+    kode_pos        VARCHAR(10),
+    aktif           BOOLEAN         NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  pelanggan           IS 'Data pelanggan yang terdaftar di aplikasi';
+COMMENT ON COLUMN pelanggan.email     IS 'Email unik untuk login';
+COMMENT ON COLUMN pelanggan.no_hp     IS 'Nomor HP aktif untuk notifikasi WhatsApp/SMS';
+
+-- ============================================================
+-- TABEL: PAKET_KATERING
+-- ============================================================
+
+CREATE TABLE paket_katering (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nama_paket          VARCHAR(150)    NOT NULL,
+    deskripsi           TEXT,
+    min_porsi           INT             NOT NULL DEFAULT 50,
+    max_porsi           INT,
+    harga_per_porsi     NUMERIC(12, 2)  NOT NULL,
+    tersedia            BOOLEAN         NOT NULL DEFAULT TRUE,
+    foto_url            TEXT,
+    created_at          TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP       NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_porsi        CHECK (min_porsi > 0),
+    CONSTRAINT chk_max_porsi    CHECK (max_porsi IS NULL OR max_porsi >= min_porsi),
+    CONSTRAINT chk_harga        CHECK (harga_per_porsi > 0)
+);
+
+COMMENT ON TABLE  paket_katering                  IS 'Katalog paket katering yang tersedia';
+COMMENT ON COLUMN paket_katering.min_porsi        IS 'Minimum pemesanan dalam porsi';
+COMMENT ON COLUMN paket_katering.harga_per_porsi  IS 'Harga satuan per porsi dalam Rupiah';
+
+-- ============================================================
+-- TABEL: MENU_ITEM
+-- ============================================================
+
+CREATE TABLE menu_item (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    paket_id        UUID            NOT NULL REFERENCES paket_katering(id) ON DELETE CASCADE,
+    nama_menu       VARCHAR(150)    NOT NULL,
+    kategori        kategori_menu   NOT NULL,
+    deskripsi       TEXT,
+    tersedia        BOOLEAN         NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  menu_item           IS 'Daftar hidangan dalam setiap paket katering';
+COMMENT ON COLUMN menu_item.kategori  IS 'Kategori menu: pembuka, makanan_utama, penutup, dll';
+
+-- ============================================================
+-- TABEL: KURIR
+-- ============================================================
+
+CREATE TABLE kurir (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nama        VARCHAR(150)    NOT NULL,
+    no_hp       VARCHAR(20)     NOT NULL,
+    kendaraan   VARCHAR(50),
+    no_plat     VARCHAR(20),
+    aktif       BOOLEAN         NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE kurir IS 'Data kurir/tim pengiriman katering';
+
+-- ============================================================
+-- TABEL: PEMESANAN
+-- ============================================================
+
+CREATE TABLE pemesanan (
+    id              UUID                PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pelanggan_id    UUID                NOT NULL REFERENCES pelanggan(id),
+    paket_id        UUID                NOT NULL REFERENCES paket_katering(id),
+    nomor_pesanan   VARCHAR(30)         NOT NULL UNIQUE,
+    tanggal_acara   DATE                NOT NULL,
+    waktu_acara     TIME,
+    lokasi_acara    TEXT                NOT NULL,
+    kota_acara      VARCHAR(100),
+    jumlah_porsi    INT                 NOT NULL,
+    harga_per_porsi NUMERIC(12, 2)      NOT NULL,
+    total_harga     NUMERIC(14, 2)      NOT NULL,
+    status          status_pemesanan    NOT NULL DEFAULT 'menunggu_konfirmasi',
+    catatan         TEXT,
+    alasan_batal    TEXT,
+    created_at      TIMESTAMP           NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP           NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_jumlah_porsi     CHECK (jumlah_porsi > 0),
+    CONSTRAINT chk_total_harga      CHECK (total_harga > 0),
+    CONSTRAINT chk_tanggal_acara    CHECK (tanggal_acara >= CURRENT_DATE)
+);
+
+COMMENT ON TABLE  pemesanan                  IS 'Data pemesanan katering dari pelanggan';
+COMMENT ON COLUMN pemesanan.nomor_pesanan    IS 'Kode unik pesanan, contoh: KTR-20260517-001';
+COMMENT ON COLUMN pemesanan.harga_per_porsi  IS 'Snapshot harga saat pemesanan (harga bisa berubah)';
+COMMENT ON COLUMN pemesanan.total_harga      IS 'jumlah_porsi * harga_per_porsi';
+
+-- ============================================================
+-- TABEL: PEMBAYARAN
+-- ============================================================
+
+CREATE TABLE pembayaran (
+    id                  UUID                    PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pemesanan_id        UUID                    NOT NULL REFERENCES pemesanan(id),
+    jumlah              NUMERIC(14, 2)          NOT NULL,
+    metode              metode_pembayaran       NOT NULL,
+    status              status_pembayaran       NOT NULL DEFAULT 'menunggu',
+    nomor_referensi     VARCHAR(100),
+    keterangan          VARCHAR(255),
+    tanggal_bayar       TIMESTAMP,
+    created_at          TIMESTAMP               NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP               NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_jumlah_bayar CHECK (jumlah > 0)
+);
+
+COMMENT ON TABLE  pembayaran                    IS 'Riwayat transaksi pembayaran (mendukung DP + pelunasan)';
+COMMENT ON COLUMN pembayaran.nomor_referensi    IS 'Nomor bukti transfer / kode transaksi payment gateway';
+COMMENT ON COLUMN pembayaran.keterangan         IS 'Contoh: DP 50%, Pelunasan';
+
+-- ============================================================
+-- TABEL: PENGIRIMAN
+-- ============================================================
+
+CREATE TABLE pengiriman (
+    id                  UUID                    PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pemesanan_id        UUID                    NOT NULL UNIQUE REFERENCES pemesanan(id),
+    kurir_id            UUID                    REFERENCES kurir(id),
+    status              status_pengiriman       NOT NULL DEFAULT 'menunggu_kurir',
+    waktu_berangkat     TIMESTAMP,
+    waktu_tiba          TIMESTAMP,
+    lokasi_terkini      TEXT,
+    bukti_pengiriman    TEXT,
+    catatan_kurir       TEXT,
+    created_at          TIMESTAMP               NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP               NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  pengiriman                    IS 'Data pengiriman per pesanan';
+COMMENT ON COLUMN pengiriman.pemesanan_id       IS 'Satu pesanan hanya memiliki satu pengiriman (UNIQUE)';
+COMMENT ON COLUMN pengiriman.bukti_pengiriman   IS 'URL foto bukti pengiriman / tanda tangan digital';
+
+-- ============================================================
+-- TABEL: ULASAN
+-- ============================================================
+
+CREATE TABLE ulasan (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pemesanan_id    UUID    NOT NULL UNIQUE REFERENCES pemesanan(id),
+    rating          SMALLINT NOT NULL,
+    komentar        TEXT,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_rating CHECK (rating BETWEEN 1 AND 5)
+);
+
+COMMENT ON TABLE  ulasan            IS 'Review pelanggan setelah pesanan selesai';
+COMMENT ON COLUMN ulasan.rating     IS 'Nilai 1 (sangat buruk) sampai 5 (sangat baik)';
+
+-- ============================================================
+-- INDEXES
+-- ============================================================
+
+-- Pelanggan
+CREATE INDEX idx_pelanggan_email    ON pelanggan(email);
+CREATE INDEX idx_pelanggan_no_hp    ON pelanggan(no_hp);
+
+-- Menu
+CREATE INDEX idx_menu_paket         ON menu_item(paket_id);
+CREATE INDEX idx_menu_kategori      ON menu_item(kategori);
+
+-- Pemesanan
+CREATE INDEX idx_pemesanan_pelanggan        ON pemesanan(pelanggan_id);
+CREATE INDEX idx_pemesanan_paket            ON pemesanan(paket_id);
+CREATE INDEX idx_pemesanan_status           ON pemesanan(status);
+CREATE INDEX idx_pemesanan_tanggal_acara    ON pemesanan(tanggal_acara);
+CREATE INDEX idx_pemesanan_nomor            ON pemesanan(nomor_pesanan);
+
+-- Pembayaran
+CREATE INDEX idx_pembayaran_pemesanan   ON pembayaran(pemesanan_id);
+CREATE INDEX idx_pembayaran_status      ON pembayaran(status);
+
+-- Pengiriman
+CREATE INDEX idx_pengiriman_pemesanan   ON pengiriman(pemesanan_id);
+CREATE INDEX idx_pengiriman_kurir       ON pengiriman(kurir_id);
+CREATE INDEX idx_pengiriman_status      ON pengiriman(status);
+
+-- ============================================================
+-- FUNGSI: AUTO UPDATE updated_at
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger untuk setiap tabel yang punya updated_at
+CREATE TRIGGER trg_pelanggan_updated_at
+    BEFORE UPDATE ON pelanggan
+    FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
+
+CREATE TRIGGER trg_paket_updated_at
+    BEFORE UPDATE ON paket_katering
+    FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
+
+CREATE TRIGGER trg_menu_updated_at
+    BEFORE UPDATE ON menu_item
+    FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
+
+CREATE TRIGGER trg_kurir_updated_at
+    BEFORE UPDATE ON kurir
+    FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
+
+CREATE TRIGGER trg_pemesanan_updated_at
+    BEFORE UPDATE ON pemesanan
+    FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
+
+CREATE TRIGGER trg_pembayaran_updated_at
+    BEFORE UPDATE ON pembayaran
+    FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
+
+CREATE TRIGGER trg_pengiriman_updated_at
+    BEFORE UPDATE ON pengiriman
+    FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
+
+-- ============================================================
+-- FUNGSI: GENERATE NOMOR PESANAN
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_generate_nomor_pesanan()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tanggal   TEXT;
+    v_urutan    INT;
+    v_nomor     TEXT;
+BEGIN
+    v_tanggal := TO_CHAR(NOW(), 'YYYYMMDD');
+
+    SELECT COUNT(*) + 1
+    INTO v_urutan
+    FROM pemesanan
+    WHERE DATE(created_at) = CURRENT_DATE;
+
+    v_nomor := 'KTR-' || v_tanggal || '-' || LPAD(v_urutan::TEXT, 4, '0');
+    NEW.nomor_pesanan := v_nomor;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_generate_nomor_pesanan
+    BEFORE INSERT ON pemesanan
+    FOR EACH ROW
+    WHEN (NEW.nomor_pesanan IS NULL OR NEW.nomor_pesanan = '')
+    EXECUTE FUNCTION fn_generate_nomor_pesanan();
+
+-- ============================================================
+-- DATA AWAL (SEED)
+-- ============================================================
+
+-- Paket katering
+INSERT INTO paket_katering (nama_paket, deskripsi, min_porsi, max_porsi, harga_per_porsi) VALUES
+('Paket Standar',   'Paket hemat untuk acara keluarga dan arisan',           50,  200, 45000.00),
+('Paket Eksekutif', 'Paket lengkap untuk acara formal dan korporat',         100, 500, 75000.00),
+('Paket Premium',   'Paket mewah dengan chef pribadi dan dekorasi meja',     150, NULL, 125000.00);
+
+-- Menu paket standar
+INSERT INTO menu_item (paket_id, nama_menu, kategori) VALUES
+((SELECT id FROM paket_katering WHERE nama_paket = 'Paket Standar'), 'Sup Buntut',           'pembuka'),
+((SELECT id FROM paket_katering WHERE nama_paket = 'Paket Standar'), 'Nasi Putih',           'makanan_utama'),
+((SELECT id FROM paket_katering WHERE nama_paket = 'Paket Standar'), 'Ayam Goreng Kremes',   'makanan_utama'),
+((SELECT id FROM paket_katering WHERE nama_paket = 'Paket Standar'), 'Tumis Kangkung',       'sayuran'),
+((SELECT id FROM paket_katering WHERE nama_paket = 'Paket Standar'), 'Es Teh Manis',         'minuman'),
+((SELECT id FROM paket_katering WHERE nama_paket = 'Paket Standar'), 'Puding Coklat',        'penutup');
+
+-- Kurir
+INSERT INTO kurir (nama, no_hp, kendaraan, no_plat) VALUES
+('Budi Santoso',    '081234567890', 'Pickup Bak',   'AB 1234 CD'),
+('Siti Rahayu',     '082345678901', 'Van Box',      'AB 5678 EF'),
+('Eko Prasetyo',    '083456789012', 'Pickup Bak',   'AB 9012 GH');
+
+-- ============================================================
+-- VIEW: RINGKASAN PEMESANAN
+-- ============================================================
+
+CREATE OR REPLACE VIEW v_ringkasan_pemesanan AS
+SELECT
+    p.id,
+    p.nomor_pesanan,
+    pl.nama                 AS nama_pelanggan,
+    pl.no_hp                AS hp_pelanggan,
+    pk.nama_paket,
+    p.tanggal_acara,
+    p.waktu_acara,
+    p.lokasi_acara,
+    p.jumlah_porsi,
+    p.total_harga,
+    p.status,
+    COALESCE(
+        (SELECT SUM(pb.jumlah)
+         FROM pembayaran pb
+         WHERE pb.pemesanan_id = p.id
+           AND pb.status IN ('dp_dibayar', 'lunas')),
+        0
+    )                       AS total_dibayar,
+    p.total_harga - COALESCE(
+        (SELECT SUM(pb.jumlah)
+         FROM pembayaran pb
+         WHERE pb.pemesanan_id = p.id
+           AND pb.status IN ('dp_dibayar', 'lunas')),
+        0
+    )                       AS sisa_tagihan,
+    pg.status               AS status_pengiriman,
+    k.nama                  AS nama_kurir,
+    p.created_at
+FROM pemesanan p
+JOIN pelanggan    pl ON pl.id = p.pelanggan_id
+JOIN paket_katering pk ON pk.id = p.paket_id
+LEFT JOIN pengiriman   pg ON pg.pemesanan_id = p.id
+LEFT JOIN kurir        k  ON k.id  = pg.kurir_id;
+
+COMMENT ON VIEW v_ringkasan_pemesanan IS 'View ringkasan pesanan lengkap dengan status pembayaran dan pengiriman';
+
+
+-- Tambah kolom yang dibutuhkan ke tabel pelanggan
+ALTER TABLE pelanggan ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+ALTER TABLE pelanggan ADD COLUMN IF NOT EXISTS kota VARCHAR(100);
+ALTER TABLE pelanggan ADD COLUMN IF NOT EXISTS kode_pos VARCHAR(10);
+ALTER TABLE pengiriman ADD COLUMN IF NOT EXISTS bukti_foto TEXT;
+
+ALTER TABLE pembayaran ADD COLUMN IF NOT EXISTS bukti_foto TEXT;
+ALTER TABLE pembayaran ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
+ALTER TABLE pembayaran ADD COLUMN IF NOT EXISTS verified_by VARCHAR(150);
+ALTER TABLE pembayaran ADD COLUMN IF NOT EXISTS catatan_verifikasi TEXT;
+ALTER TYPE status_pembayaran ADD VALUE IF NOT EXISTS 'menunggu_verifikasi';
+
+-- Tambah kolom email & password ke tabel kurir (untuk login kurir)
+ALTER TABLE kurir ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+ALTER TABLE kurir ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+
+-- Pastikan kolom aktif ada di pelanggan
+ALTER TABLE pelanggan ADD COLUMN IF NOT EXISTS aktif BOOLEAN NOT NULL DEFAULT TRUE;

@@ -1,0 +1,81 @@
+<%- include('partials/head') %>
+<%- include('partials/navbar') %>
+
+<!-- Hero -->
+<section style="background: linear-gradient(135deg,#e65c00,#f9a825); min-height:420px"
+         class="d-flex align-items-center text-white">
+  <div class="container text-center py-5">
+    <h1 class="display-4 fw-bold mb-3">Katering Lezat, Diantar ke Pintu Anda</h1>
+    <p class="lead mb-4 opacity-75">Pilih paket katering terbaik untuk acara spesial Anda. Dipesan mudah, dikirim tepat waktu.</p>
+    <% if (user) { %>
+      <a href="/pemesanan/buat" class="btn btn-light btn-lg px-5 fw-semibold">
+        <i class="bi bi-plus-circle me-2"></i>Pesan Sekarang
+      </a>
+    <% } else { %>
+      <a href="/auth/register" class="btn btn-light btn-lg px-5 fw-semibold me-2">Mulai Pesan</a>
+      <a href="/auth/login" class="btn btn-outline-light btn-lg px-5">Masuk</a>
+    <% } %>
+  </div>
+</section>
+
+<!-- Paket -->
+<section class="py-5">
+  <div class="container">
+    <h2 class="fw-bold text-center mb-2">Paket Katering Kami</h2>
+    <p class="text-muted text-center mb-5">Berbagai pilihan untuk acara keluarga, pernikahan, hingga korporat</p>
+    <div class="row g-4 justify-content-center">
+      <% paket.forEach((p, i) => { %>
+      <div class="col-md-4">
+        <div class="card h-100 <%= i === 1 ? 'border-2' : '' %>" style="<%= i===1 ? 'border-color:var(--primary)!important' : '' %>">
+          <% if (i === 1) { %>
+            <div class="card-header text-center py-2" style="background:var(--primary);color:#fff;font-size:.85rem;font-weight:600">
+              ⭐ PALING POPULER
+            </div>
+          <% } %>
+          <div class="card-body p-4">
+            <h4 class="fw-bold"><%= p.nama_paket %></h4>
+            <p class="text-muted small mb-3"><%= p.deskripsi || '' %></p>
+            <div class="d-flex align-items-baseline gap-1 mb-3">
+              <span class="fs-3 fw-bold" style="color:var(--primary)"><%= formatRupiah(p.harga_per_porsi) %></span>
+              <span class="text-muted small">/ porsi</span>
+            </div>
+            <ul class="list-unstyled text-muted small mb-4">
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Min. <%= p.min_porsi %> porsi</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i><%= p.max_porsi ? `Maks. ${p.max_porsi} porsi` : 'Tidak ada batas maksimum' %></li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Pengiriman ke lokasi acara</li>
+            </ul>
+            <a href="<%= user ? '/pemesanan/buat?paket_id='+p.id : '/auth/login' %>"
+               class="btn btn-primary w-100 <%= i===1 ? '' : 'btn-outline-primary' %>"
+               style="<%= i!==1 ? 'background:transparent;color:var(--primary);border-color:var(--primary)' : '' %>">
+              Pilih Paket
+            </a>
+          </div>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+<!-- Cara kerja -->
+<section class="py-5 bg-white">
+  <div class="container">
+    <h2 class="fw-bold text-center mb-5">Cara Pemesanan</h2>
+    <div class="row g-4 text-center">
+      <% [
+        {icon:'bi-1-circle-fill',title:'Pilih Paket',desc:'Pilih paket katering yang sesuai kebutuhan acara Anda'},
+        {icon:'bi-2-circle-fill',title:'Isi Detail Acara',desc:'Tentukan tanggal, lokasi, dan jumlah porsi yang diinginkan'},
+        {icon:'bi-3-circle-fill',title:'Bayar',desc:'Lakukan pembayaran DP atau penuh via metode pilihan Anda'},
+        {icon:'bi-4-circle-fill',title:'Terima Pesanan',desc:'Kurir kami akan mengantarkan ke lokasi acara tepat waktu'},
+      ].forEach(s => { %>
+      <div class="col-md-3">
+        <i class="bi <%= s.icon %> fs-1 mb-3" style="color:var(--primary)"></i>
+        <h6 class="fw-bold"><%= s.title %></h6>
+        <p class="text-muted small"><%= s.desc %></p>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+<%- include('partials/footer') %>

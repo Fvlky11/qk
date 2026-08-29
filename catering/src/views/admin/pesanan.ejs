@@ -1,0 +1,349 @@
+<%- include('../partials/head') %>
+<div class="d-flex">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="flex-grow-1">
+    <%- include('../partials/navbar') %>
+    <div class="container-fluid p-4">
+      <h4 class="fw-bold mb-4">Pesanan & Verifikasi</h4>
+
+      <!-- Filter -->
+      <div class="card p-3 mb-3">
+        <form method="GET" class="row g-2 align-items-end">
+          <div class="col-md-4">
+            <input type="text" name="search" class="form-control form-control-sm"
+                   placeholder="Cari nama / nomor pesanan" value="<%= search %>">
+          </div>
+          <div class="col-md-3">
+            <select name="status" class="form-select form-select-sm">
+              <option value="">Semua Status</option>
+              <% ['menunggu_konfirmasi','dikonfirmasi','diproses','siap_kirim','sedang_dikirim','selesai','dibatalkan'].forEach(s=>{ %>
+                <option value="<%= s %>" <%= filterStatus===s?'selected':'' %>><%= s.replace(/_/g,' ') %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-auto"><button class="btn btn-primary btn-sm">Filter</button></div>
+          <div class="col-auto"><a href="/admin/pesanan" class="btn btn-outline-secondary btn-sm">Reset</a></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>No. Pesanan</th><th>Pelanggan</th><th>Paket</th>
+                <th>Tgl Acara</th><th>Total</th><th>Bayar</th><th>Status</th><th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+            <% if (!pesanan.length) { %>
+              <tr><td colspan="8" class="text-center text-muted py-4">Tidak ada data</td></tr>
+            <% } %>
+            <% pesanan.forEach(p => {
+              const s = statusLabel[p.status] || {text:p.status, class:'secondary'};
+              const sisa = parseFloat(p.total_harga) - parseFloat(p.total_dibayar||0);
+            %>
+            <tr>
+              <td>
+                <div class="fw-semibold small"><%= p.nomor_pesanan %></div>
+                <div class="text-muted" style="font-size:.7rem"><%= new Date(p.created_at).toLocaleDateString('id-ID') %></div>
+              </td>
+              <td><div class="small fw-semibold"><%= p.nama_pelanggan %></div><div class="text-muted" style="font-size:.7rem"><%= p.no_hp %></div></td>
+              <td><div class="small"><%= p.nama_paket %></div><div class="text-muted" style="font-size:.7rem"><%= p.jumlah_porsi %> porsi</div></td>
+              <td class="small"><%= new Date(p.tanggal_acara).toLocaleDateString('id-ID') %></td>
+              <td class="small fw-bold"><%= formatRupiah(p.total_harga) %></td>
+              <td>
+                <% if (sisa <= 0) { %>
+                  <span class="badge bg-success">Lunas</span>
+                <% } else { %>
+                  <div class="text-danger small fw-semibold"><%= formatRupiah(sisa) %></div>
+                  <div class="text-muted" style="font-size:.68rem">belum lunas</div>
+                <% } %>
+              </td>
+              <td><span class="badge bg-<%= s.class %>"><%= s.text %></span></td>
+              <td>
+                <div class="d-flex flex-column gap-1">
+
+                  <%# STEP 1: Konfirmasi pesanan %>
+                  <% if (p.status === 'menunggu_konfirmasi') { %>
+                    <button class="btn btn-sm btn-primary"
+                            data-bs-toggle="modal" data-bs-target="#modalKonfirmasi"
+                            data-id="<%= p.id %>" data-nomor="<%= p.nomor_pesanan %>"
+                            data-pelanggan="<%= p.nama_pelanggan %>">
+                      <i class="bi bi-check-circle me-1"></i>Konfirmasi
+                    </button>
+                  <% } %>
+
+                  <%# STEP 3: Verifikasi bukti bayar %>
+                  <% if (p.status === 'dikonfirmasi' && p.ada_bukti_pending) { %>
+                    <button class="btn btn-sm btn-warning"
+                            data-bs-toggle="modal" data-bs-target="#modalVerifikasi"
+                            data-id="<%= p.id %>"
+                            data-nomor="<%= p.nomor_pesanan %>"
+                            data-pelanggan="<%= p.nama_pelanggan %>"
+                            data-total="<%= formatRupiah(p.total_harga) %>"
+                            data-bukti='<%= JSON.stringify(p.bukti_list||[]) %>'>
+                      <i class="bi bi-shield-check me-1"></i>Verifikasi Bayar
+                    </button>
+                  <% } %>
+
+                  <%# STEP 4: Siap kirim + pilih kurir (setelah diproses = bayar lunas) %>
+                  <% if (p.status === 'diproses') { %>
+                    <button class="btn btn-sm btn-success"
+                            data-bs-toggle="modal" data-bs-target="#modalSiapKirim"
+                            data-id="<%= p.id %>" data-nomor="<%= p.nomor_pesanan %>">
+                      <i class="bi bi-truck me-1"></i>Siap Kirim
+                    </button>
+                  <% } %>
+
+                  <%# Batalkan %>
+                  <% if (!['selesai','dibatalkan','sedang_dikirim'].includes(p.status)) { %>
+                    <button class="btn btn-sm btn-outline-danger"
+                            data-bs-toggle="modal" data-bs-target="#modalBatal"
+                            data-id="<%= p.id %>" data-nomor="<%= p.nomor_pesanan %>">
+                      <i class="bi bi-x-circle me-1"></i>Batal
+                    </button>
+                  <% } %>
+
+                </div>
+              </td>
+            </tr>
+            <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL STEP 1: Konfirmasi Pesanan ══ -->
+<div class="modal fade" id="modalKonfirmasi" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form method="POST" id="formKonfirmasi">
+        <div class="modal-header bg-primary text-white">
+          <h6 class="modal-title fw-bold"><i class="bi bi-check-circle me-2"></i>Konfirmasi Pesanan</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-1 small">Konfirmasi pesanan <strong id="kNomor"></strong> dari <strong id="kPelanggan"></strong>?</p>
+          <p class="text-muted small">Setelah dikonfirmasi, pelanggan wajib melakukan pembayaran lunas.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary btn-sm">✓ Konfirmasi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL STEP 3: Verifikasi Bukti Bayar ══ -->
+<div class="modal fade" id="modalVerifikasi" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--primary);color:#fff">
+        <h6 class="modal-title fw-bold"><i class="bi bi-shield-check me-2"></i>Verifikasi Bukti Pembayaran</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-5">
+            <table class="table table-sm table-borderless small">
+              <tr><td class="text-muted">No. Pesanan</td><td class="fw-bold" id="vNomor"></td></tr>
+              <tr><td class="text-muted">Pelanggan</td><td id="vPelanggan"></td></tr>
+              <tr><td class="text-muted">Total Pesanan</td><td class="fw-bold text-danger" id="vTotal"></td></tr>
+            </table>
+          </div>
+          <div class="col-md-7">
+            <div class="alert alert-info small mb-0">
+              <i class="bi bi-info-circle me-1"></i>
+              Periksa kesesuaian jumlah dan bukti transfer. Klik foto untuk perbesar.
+              Jika sudah sesuai klik <strong>Terverifikasi</strong>.
+            </div>
+          </div>
+        </div>
+
+        <!-- Daftar bukti per transaksi -->
+        <div id="vBuktiList"></div>
+
+        <div class="mb-2 mt-3">
+          <label class="form-label small fw-semibold">Catatan untuk pelanggan (opsional)</label>
+          <textarea id="vCatatan" class="form-control form-control-sm" rows="2" placeholder="Misal: Pembayaran diterima, terima kasih."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" id="btnTolak">
+          <i class="bi bi-x-circle me-1"></i>Tolak — Minta Upload Ulang
+        </button>
+        <div>
+          <button type="button" class="btn btn-secondary btn-sm me-2" data-bs-dismiss="modal">Tutup</button>
+          <button type="button" class="btn btn-success" id="btnApprove">
+            <i class="bi bi-check-circle me-1"></i>Terverifikasi
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL STEP 4: Siap Kirim + Pilih Kurir ══ -->
+<div class="modal fade" id="modalSiapKirim" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" id="formSiapKirim">
+        <div class="modal-header bg-success text-white">
+          <h6 class="modal-title fw-bold"><i class="bi bi-truck me-2"></i>Siap Kirim — Tugaskan Kurir</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">Pesanan: <strong id="skNomor"></strong></p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Pilih Kurir <span class="text-danger">*</span></label>
+            <select name="kurir_id" id="selectKurir" class="form-select" required>
+              <option value="">-- Memuat daftar kurir... --</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-success btn-sm">Tugaskan Kurir</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL Batalkan ══ -->
+<div class="modal fade" id="modalBatal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form method="POST" id="formBatal">
+        <div class="modal-header bg-danger text-white">
+          <h6 class="modal-title fw-bold">Batalkan Pesanan</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small mb-2">Batalkan pesanan <strong id="bNomor"></strong>?</p>
+          <textarea name="alasan_batal" class="form-control form-control-sm" rows="2"
+                    placeholder="Alasan pembatalan..." required></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tidak</button>
+          <button type="submit" class="btn btn-danger btn-sm">Batalkan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="modal fade" id="modalLightbox" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark border-0">
+      <div class="modal-body p-2 text-center">
+        <img id="lightboxImg" src="" class="img-fluid rounded" style="max-height:85vh">
+      </div>
+      <button class="btn btn-secondary btn-sm m-2" data-bs-dismiss="modal">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Step 1: Konfirmasi ────────────────────────
+document.getElementById('modalKonfirmasi').addEventListener('show.bs.modal', e => {
+  const b = e.relatedTarget;
+  document.getElementById('formKonfirmasi').action = `/admin/pesanan/${b.dataset.id}/konfirmasi`;
+  document.getElementById('kNomor').textContent     = b.dataset.nomor;
+  document.getElementById('kPelanggan').textContent = b.dataset.pelanggan;
+});
+
+// ── Step 3: Verifikasi Bukti ──────────────────
+let verifikasiBuktiId = null;
+
+document.getElementById('modalVerifikasi').addEventListener('show.bs.modal', e => {
+  const b = e.relatedTarget;
+  document.getElementById('vNomor').textContent    = b.dataset.nomor;
+  document.getElementById('vPelanggan').textContent= b.dataset.pelanggan;
+  document.getElementById('vTotal').textContent    = b.dataset.total;
+  document.getElementById('vCatatan').value        = '';
+
+  const buktiList = JSON.parse(b.dataset.bukti || '[]');
+  const container = document.getElementById('vBuktiList');
+
+  if (!buktiList || buktiList.length === 0) {
+    container.innerHTML = '<p class="text-muted small fst-italic">Belum ada bukti yang diupload.</p>';
+    verifikasiBuktiId = null;
+    return;
+  }
+
+  // Ambil id pembayaran pertama untuk action form
+  verifikasiBuktiId = buktiList[0].id;
+
+  container.innerHTML = buktiList.map(bk => `
+    <div class="border rounded p-3 mb-2">
+      <div class="row align-items-center g-3">
+        <div class="col-md-4">
+          <img src="${bk.bukti_foto}" class="img-thumbnail w-100"
+               style="max-height:150px;object-fit:cover;cursor:zoom-in"
+               onclick="bukaLightbox('${bk.bukti_foto}')">
+        </div>
+        <div class="col-md-8">
+          <table class="table table-sm table-borderless small mb-0">
+            <tr><td class="text-muted">Jumlah</td><td class="fw-bold text-success">${bk.jumlah ? 'Rp '+parseInt(bk.jumlah).toLocaleString('id-ID') : '-'}</td></tr>
+            <tr><td class="text-muted">Metode</td><td>${(bk.metode||'').replace(/_/g,' ')}</td></tr>
+            ${bk.keterangan ? `<tr><td class="text-muted">Ket.</td><td>${bk.keterangan}</td></tr>` : ''}
+          </table>
+        </div>
+      </div>
+    </div>`).join('');
+});
+
+document.getElementById('btnApprove').addEventListener('click', () => {
+  if (!verifikasiBuktiId) return;
+  submitVerifikasi('approve');
+});
+document.getElementById('btnTolak').addEventListener('click', () => {
+  if (!verifikasiBuktiId) return;
+  const catatan = document.getElementById('vCatatan').value.trim();
+  if (!catatan) { alert('Isi catatan alasan penolakan untuk pelanggan.'); return; }
+  submitVerifikasi('tolak');
+});
+
+function submitVerifikasi(aksi) {
+  const catatan = document.getElementById('vCatatan').value;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/admin/bayar/${verifikasiBuktiId}/verifikasi`;
+  form.innerHTML = `<input name="aksi" value="${aksi}"><input name="catatan_verifikasi" value="${catatan}">`;
+  document.body.appendChild(form);
+  form.submit();
+}
+
+// ── Step 4: Siap Kirim ────────────────────────
+document.getElementById('modalSiapKirim').addEventListener('show.bs.modal', async e => {
+  const b = e.relatedTarget;
+  document.getElementById('formSiapKirim').action = `/admin/pesanan/${b.dataset.id}/siap-kirim`;
+  document.getElementById('skNomor').textContent  = b.dataset.nomor;
+
+  const res  = await fetch('/api/kurir-aktif');
+  const list = await res.json();
+  const sel  = document.getElementById('selectKurir');
+  sel.innerHTML = '<option value="">-- Pilih Kurir --</option>' +
+    list.map(k=>`<option value="${k.id}">${k.nama}${k.kendaraan?' — '+k.kendaraan:''} ${k.no_plat||''}</option>`).join('');
+});
+
+// ── Batalkan ──────────────────────────────────
+document.getElementById('modalBatal').addEventListener('show.bs.modal', e => {
+  const b = e.relatedTarget;
+  document.getElementById('formBatal').action  = `/admin/pesanan/${b.dataset.id}/batal`;
+  document.getElementById('bNomor').textContent = b.dataset.nomor;
+});
+
+function bukaLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  new bootstrap.Modal(document.getElementById('modalLightbox')).show();
+}
+</script>
+<%- include('../partials/footer') %>

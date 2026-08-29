@@ -1,0 +1,132 @@
+<%- include('../partials/head') %>
+<div class="d-flex">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="flex-grow-1">
+    <%- include('../partials/navbar') %>
+    <div class="container-fluid p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold mb-0">Kelola Paket Katering</h4>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalPaket">
+          <i class="bi bi-plus-circle me-1"></i>Tambah Paket
+        </button>
+      </div>
+
+      <div class="row g-4">
+        <% paket.forEach(p => {
+          const menus = menuItems.filter(m => m.paket_id === p.id);
+          const grouped = {};
+          menus.forEach(m => { if(!grouped[m.kategori]) grouped[m.kategori]=[]; grouped[m.kategori].push(m); });
+        %>
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center py-3"
+                 style="background:var(--primary);color:#fff">
+              <span class="fw-bold"><%= p.nama_paket %></span>
+              <span class="badge bg-white text-dark"><%= p.tersedia ? 'Aktif' : 'Nonaktif' %></span>
+            </div>
+            <div class="card-body p-3">
+              <p class="text-muted small mb-2"><%= p.deskripsi || '' %></p>
+              <div class="d-flex gap-3 mb-3 small">
+                <span><i class="bi bi-currency-dollar me-1"></i><strong><%= formatRupiah(p.harga_per_porsi) %></strong>/porsi</span>
+                <span><i class="bi bi-people me-1"></i>Min <%= p.min_porsi %><%= p.max_porsi ? ' – '+p.max_porsi : '+' %></span>
+              </div>
+
+              <% if (Object.keys(grouped).length > 0) { %>
+              <div class="border-top pt-2">
+                <p class="small fw-semibold mb-1">Menu:</p>
+                <% Object.entries(grouped).forEach(([kat, items]) => { %>
+                  <div class="mb-1">
+                    <span class="badge bg-light text-dark text-capitalize" style="font-size:.65rem"><%= kat.replace('_',' ') %></span>
+                    <span class="text-muted small ms-1"><%= items.map(i=>i.nama_menu).join(', ') %></span>
+                  </div>
+                <% }) %>
+              </div>
+              <% } %>
+            </div>
+            <div class="card-footer bg-white border-0 p-3 pt-0">
+              <button class="btn btn-sm btn-outline-primary"
+                      data-bs-toggle="modal" data-bs-target="#modalMenu"
+                      data-paket-id="<%= p.id %>" data-paket-nama="<%= p.nama_paket %>">
+                <i class="bi bi-plus me-1"></i>Tambah Menu
+              </button>
+            </div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Tambah Paket -->
+<div class="modal fade" id="modalPaket" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="/admin/paket">
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold">Tambah Paket Baru</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12"><label class="form-label small fw-semibold">Nama Paket</label>
+              <input type="text" name="nama_paket" class="form-control" required></div>
+            <div class="col-12"><label class="form-label small fw-semibold">Deskripsi</label>
+              <textarea name="deskripsi" class="form-control" rows="2"></textarea></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Harga/Porsi (Rp)</label>
+              <input type="number" name="harga_per_porsi" class="form-control" required min="1000"></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Min Porsi</label>
+              <input type="number" name="min_porsi" class="form-control" value="50" required min="1"></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Maks Porsi</label>
+              <input type="number" name="max_porsi" class="form-control" placeholder="kosongkan = tak terbatas"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Tambah Menu -->
+<div class="modal fade" id="modalMenu" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form method="POST" action="/admin/menu">
+        <input type="hidden" name="paket_id" id="menuPaketId">
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold">Tambah Menu — <span id="menuPaketNama"></span></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3"><label class="form-label small fw-semibold">Nama Menu</label>
+            <input type="text" name="nama_menu" class="form-control" required></div>
+          <div class="mb-3"><label class="form-label small fw-semibold">Kategori</label>
+            <select name="kategori" class="form-select">
+              <% ['pembuka','makanan_utama','sayuran','minuman','penutup','snack'].forEach(k => { %>
+                <option value="<%= k %>"><%= k.replace('_',' ') %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="mb-3"><label class="form-label small fw-semibold">Deskripsi</label>
+            <input type="text" name="deskripsi" class="form-control" placeholder="opsional"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('modalMenu').addEventListener('show.bs.modal', e => {
+  const btn = e.relatedTarget;
+  document.getElementById('menuPaketId').value   = btn.dataset.paketId;
+  document.getElementById('menuPaketNama').textContent = btn.dataset.paketNama;
+});
+</script>
+<%- include('../partials/footer') %>

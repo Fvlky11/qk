@@ -1,0 +1,190 @@
+<%- include('../partials/head') %>
+<div class="d-flex">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="flex-grow-1">
+    <%- include('../partials/navbar') %>
+    <div class="container-fluid p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold mb-0">Verifikasi Pembayaran</h4>
+        <span class="badge bg-warning fs-6"><%= pembayaran.length %> menunggu</span>
+      </div>
+
+      <!-- Filter -->
+      <div class="card p-3 mb-4">
+        <form method="GET" class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold mb-1">Status</label>
+            <select name="status" class="form-select form-select-sm">
+              <option value="">Menunggu Verifikasi</option>
+              <option value="menunggu_verifikasi" <%= filterStatus==='menunggu_verifikasi'?'selected':'' %>>Menunggu Verifikasi</option>
+              <option value="menunggu" <%= filterStatus==='menunggu'?'selected':'' %>>Menunggu</option>
+              <option value="dp_dibayar" <%= filterStatus==='dp_dibayar'?'selected':'' %>>DP Dibayar</option>
+              <option value="lunas" <%= filterStatus==='lunas'?'selected':'' %>>Lunas</option>
+              <option value="gagal" <%= filterStatus==='gagal'?'selected':'' %>>Ditolak</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-primary btn-sm w-100">Filter</button>
+          </div>
+          <div class="col-md-2">
+            <a href="/admin/pembayaran" class="btn btn-outline-secondary btn-sm w-100">Reset</a>
+          </div>
+        </form>
+      </div>
+
+      <% if (pembayaran.length === 0) { %>
+        <div class="card p-5 text-center">
+          <i class="bi bi-check-circle fs-1 text-success mb-3"></i>
+          <h5 class="text-muted">Tidak ada pembayaran yang perlu diverifikasi</h5>
+        </div>
+      <% } %>
+
+      <div class="d-flex flex-column gap-3">
+        <% pembayaran.forEach(pb => {
+          const statusBadge = {
+            menunggu: 'warning', menunggu_verifikasi: 'info',
+            dp_dibayar: 'success', lunas: 'success', gagal: 'danger'
+          }[pb.status] || 'secondary';
+        %>
+        <div class="card p-4">
+          <div class="row align-items-start">
+            <!-- Info pembayaran -->
+            <div class="col-md-5">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="fw-bold"><%= pb.nomor_pesanan %></span>
+                <span class="badge bg-<%= statusBadge %>"><%= pb.status.replace(/_/g,' ') %></span>
+              </div>
+              <table class="table table-sm table-borderless small mb-0">
+                <tr><td class="text-muted" width="100">Pelanggan</td><td><strong><%= pb.nama_pelanggan %></strong></td></tr>
+                <tr><td class="text-muted">No. HP</td><td><%= pb.no_hp %></td></tr>
+                <tr><td class="text-muted">Jumlah</td><td><strong class="text-success fs-6"><%= formatRupiah(pb.jumlah) %></strong></td></tr>
+                <tr><td class="text-muted">Metode</td><td><%= pb.metode.replace(/_/g,' ') %></td></tr>
+                <% if (pb.nomor_referensi) { %><tr><td class="text-muted">Referensi</td><td><%= pb.nomor_referensi %></td></tr><% } %>
+                <% if (pb.keterangan) { %><tr><td class="text-muted">Keterangan</td><td><%= pb.keterangan %></td></tr><% } %>
+                <tr><td class="text-muted">Total Pesanan</td><td><%= formatRupiah(pb.total_harga) %></td></tr>
+                <tr><td class="text-muted">Tgl Upload</td><td><%= formatTanggal(pb.created_at) %></td></tr>
+              </table>
+              <% if (pb.catatan_verifikasi) { %>
+                <div class="alert alert-light small mt-2 mb-0 py-2">
+                  <strong>Catatan:</strong> <%= pb.catatan_verifikasi %>
+                  <% if (pb.verified_by) { %><br><span class="text-muted">oleh <%= pb.verified_by %></span><% } %>
+                </div>
+              <% } %>
+            </div>
+
+            <!-- Bukti foto -->
+            <div class="col-md-4 mt-3 mt-md-0">
+              <p class="small fw-semibold mb-2">Bukti Pembayaran:</p>
+              <% if (pb.bukti_foto) { %>
+                <a href="<%= pb.bukti_foto %>" target="_blank">
+                  <img src="<%= pb.bukti_foto %>" class="img-thumbnail w-100" style="max-height:220px;object-fit:contain;cursor:zoom-in">
+                </a>
+                <div class="text-muted small mt-1 text-center">
+                  <i class="bi bi-zoom-in me-1"></i>Klik untuk perbesar
+                </div>
+              <% } else { %>
+                <div class="border rounded p-4 text-center text-muted bg-light">
+                  <i class="bi bi-image fs-2 mb-2 d-block"></i>
+                  <span class="small">Belum ada bukti foto</span>
+                </div>
+              <% } %>
+            </div>
+
+            <!-- Aksi -->
+            <div class="col-md-3 mt-3 mt-md-0">
+              <% if (['menunggu','menunggu_verifikasi'].includes(pb.status)) { %>
+                <p class="small fw-semibold mb-2">Tindakan:</p>
+                <!-- Approve -->
+                <button class="btn btn-success w-100 mb-2 btn-sm"
+                        data-bs-toggle="modal" data-bs-target="#modalApprove"
+                        data-id="<%= pb.id %>" data-nama="<%= pb.nama_pelanggan %>"
+                        data-jumlah="<%= formatRupiah(pb.jumlah) %>">
+                  <i class="bi bi-check-circle me-1"></i>Verifikasi & Setujui
+                </button>
+                <!-- Tolak -->
+                <button class="btn btn-outline-danger w-100 btn-sm"
+                        data-bs-toggle="modal" data-bs-target="#modalTolak"
+                        data-id="<%= pb.id %>">
+                  <i class="bi bi-x-circle me-1"></i>Tolak
+                </button>
+              <% } else { %>
+                <div class="text-center text-muted small mt-2">
+                  <i class="bi bi-check2-all fs-3 text-<%= pb.status==='gagal'?'danger':'success' %>"></i><br>
+                  Sudah diproses
+                </div>
+              <% } %>
+              <a href="/pemesanan/<%= pb.pemesanan_id %>" class="btn btn-outline-secondary w-100 mt-2 btn-sm" target="_blank">
+                <i class="bi bi-eye me-1"></i>Detail Pesanan
+              </a>
+            </div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Approve -->
+<div class="modal fade" id="modalApprove" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form method="POST" id="formApprove">
+        <div class="modal-header bg-success text-white">
+          <h6 class="modal-title fw-bold"><i class="bi bi-check-circle me-2"></i>Setujui Pembayaran</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small mb-3">Setujui pembayaran dari <strong id="approveNama"></strong> sebesar <strong id="approveJumlah"></strong>?</p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Catatan (opsional)</label>
+            <textarea name="catatan_verifikasi" class="form-control form-control-sm" rows="2"
+                      placeholder="Contoh: Pembayaran sesuai, konfirmasi diterima"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-success btn-sm">✓ Setujui</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Tolak -->
+<div class="modal fade" id="modalTolak" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form method="POST" id="formTolak">
+        <div class="modal-header bg-danger text-white">
+          <h6 class="modal-title fw-bold"><i class="bi bi-x-circle me-2"></i>Tolak Pembayaran</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Alasan Penolakan <span class="text-danger">*</span></label>
+            <textarea name="catatan_verifikasi" class="form-control form-control-sm" rows="3"
+                      placeholder="Contoh: Bukti tidak jelas, jumlah tidak sesuai..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-danger btn-sm">✗ Tolak</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('modalApprove').addEventListener('show.bs.modal', e => {
+  const btn = e.relatedTarget;
+  document.getElementById('formApprove').action = `/admin/pembayaran/${btn.dataset.id}/approve`;
+  document.getElementById('approveNama').textContent   = btn.dataset.nama;
+  document.getElementById('approveJumlah').textContent = btn.dataset.jumlah;
+});
+document.getElementById('modalTolak').addEventListener('show.bs.modal', e => {
+  document.getElementById('formTolak').action = `/admin/pembayaran/${e.relatedTarget.dataset.id}/tolak`;
+});
+</script>
+<%- include('../partials/footer') %>

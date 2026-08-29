@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleUser {
+  admin
+  pelanggan
+  kurir
+}
+
+enum StatusPemesanan {
+  menunggu_konfirmasi
+  dikonfirmasi
+  diproses
+  siap_kirim
+  sedang_dikirim
+  selesai
+  dibatalkan
+}
+
+enum StatusPembayaran {
+  menunggu
+  dp_dibayar
+  lunas
+  gagal
+  dikembalikan
+}
+
+enum MetodePembayaran {
+  transfer_bank
+  kartu_kredit
+  dompet_digital
+  tunai
+  qris
+}
+
+enum StatusPengiriman {
+  menunggu_kurir
+  kurir_ditugaskan
+  sedang_disiapkan
+  dalam_perjalanan
+  tiba_di_lokasi
+  selesai
+  gagal
+}
+
+enum KategoriMenu {
+  pembuka
+  makanan_utama
+  sayuran
+  minuman
+  penutup
+  snack
+}
+
+model User {
+  id         String    @id @default(uuid())
+  nama       String
+  email      String    @unique
+  password   String
+  noHp       String    @map("no_hp")
+  role       RoleUser  @default(pelanggan)
+  aktif      Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  pelanggan  Pelanggan?
+  kurir      Kurir?
+
+  @@map("users")
+}
+
+model Pelanggan {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  alamat    String?
+  kota      String?
+  kodePos   String?  @map("kode_pos")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id])
+  pesanan   Pemesanan[]
+
+  @@map("pelanggan")
+}
+
+model PaketKatering {
+  id             String   @id @default(uuid())
+  namaPaket      String   @map("nama_paket")
+  deskripsi      String?
+  minPorsi       Int      @default(50) @map("min_porsi")
+  maxPorsi       Int?     @map("max_porsi")
+  hargaPerPorsi  Decimal  @map("harga_per_porsi") @db.Decimal(12, 2)
+  tersedia       Boolean  @default(true)
+  fotoUrl        String?  @map("foto_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  menuItems  MenuItem[]
+  pesanan    Pemesanan[]
+
+  @@map("paket_katering")
+}
+
+model MenuItem {
+  id        String       @id @default(uuid())
+  paketId   String       @map("paket_id")
+  namaMenu  String       @map("nama_menu")
+  kategori  KategoriMenu
+  deskripsi String?
+  tersedia  Boolean      @default(true)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  paket     PaketKatering @relation(fields: [paketId], references: [id], onDelete: Cascade)
+
+  @@map("menu_item")
+}
+
+model Kurir {
+  id         String   @id @default(uuid())
+  userId     String   @unique @map("user_id")
+  kendaraan  String?
+  noPlat     String?  @map("no_plat")
+  aktif      Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id])
+  pengiriman Pengiriman[]
+
+  @@map("kurir")
+}
+
+model Pemesanan {
+  id             String          @id @default(uuid())
+  pelangganId    String          @map("pelanggan_id")
+  paketId        String          @map("paket_id")
+  nomorPesanan   String          @unique @map("nomor_pesanan")
+  tanggalAcara   DateTime        @map("tanggal_acara") @db.Date
+  waktuAcara     String?         @map("waktu_acara")
+  lokasiAcara    String          @map("lokasi_acara")
+  kotaAcara      String?         @map("kota_acara")
+  jumlahPorsi    Int             @map("jumlah_porsi")
+  hargaPerPorsi  Decimal         @map("harga_per_porsi") @db.Decimal(12, 2)
+  totalHarga     Decimal         @map("total_harga") @db.Decimal(14, 2)
+  status         StatusPemesanan @default(menunggu_konfirmasi)
+  catatan        String?
+  alasanBatal    String?         @map("alasan_batal")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  pelanggan  Pelanggan    @relation(fields: [pelangganId], references: [id])
+  paket      PaketKatering @relation(fields: [paketId], references: [id])
+  pembayaran Pembayaran[]
+  pengiriman Pengiriman?
+  ulasan     Ulasan?
+
+  @@map("pemesanan")
+}
+
+model Pembayaran {
+  id              String           @id @default(uuid())
+  pemesananId     String           @map("pemesanan_id")
+  jumlah          Decimal          @db.Decimal(14, 2)
+  metode          MetodePembayaran
+  status          StatusPembayaran @default(menunggu)
+  nomorReferensi  String?          @map("nomor_referensi")
+  keterangan      String?
+  tanggalBayar    DateTime?        @map("tanggal_bayar")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  pemesanan  Pemesanan @relation(fields: [pemesananId], references: [id])
+
+  @@map("pembayaran")
+}
+
+model Pengiriman {
+  id               String          @id @default(uuid())
+  pemesananId      String          @unique @map("pemesanan_id")
+  kurirId          String?         @map("kurir_id")
+  status           StatusPengiriman @default(menunggu_kurir)
+  waktuBerangkat   DateTime?       @map("waktu_berangkat")
+  waktuTiba        DateTime?       @map("waktu_tiba")
+  lokasiTerkini    String?         @map("lokasi_terkini")
+  buktiFoto        String?         @map("bukti_foto")
+  catatanKurir     String?         @map("catatan_kurir")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  pemesanan  Pemesanan @relation(fields: [pemesananId], references: [id])
+  kurir      Kurir?    @relation(fields: [kurirId], references: [id])
+
+  @@map("pengiriman")
+}
+
+model Ulasan {
+  id          String   @id @default(uuid())
+  pemesananId String   @unique @map("pemesanan_id")
+  rating      Int
+  komentar    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  pemesanan   Pemesanan @relation(fields: [pemesananId], references: [id])
+
+  @@map("ulasan")
+}

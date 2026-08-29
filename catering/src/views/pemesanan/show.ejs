@@ -1,0 +1,265 @@
+<%- include('../partials/head') %>
+<%- include('../partials/navbar') %>
+<div class="container py-4">
+
+  <% if (success) { %>
+    <div class="alert alert-success alert-dismissible fade show">
+      <i class="bi bi-check-circle me-2"></i>Berhasil!
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/pemesanan">Pesanan</a></li>
+      <li class="breadcrumb-item active"><%= pesanan.nomor_pesanan %></li>
+    </ol>
+  </nav>
+
+  <div class="row g-4">
+    <!-- KIRI -->
+    <div class="col-md-8">
+
+      <!-- Info Pesanan -->
+      <div class="card p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h5 class="fw-bold mb-1"><%= pesanan.nomor_pesanan %></h5>
+            <span class="text-muted small">Dipesan: <%= formatTanggal(pesanan.created_at) %></span>
+          </div>
+          <% const s = statusLabel[pesanan.status]||{text:pesanan.status,class:'secondary'} %>
+          <span class="badge bg-<%= s.class %> fs-6 px-3 py-2"><%= s.text %></span>
+        </div>
+        <table class="table table-sm table-borderless">
+          <tr><td class="text-muted" width="140">Paket</td><td class="fw-semibold"><%= pesanan.nama_paket %></td></tr>
+          <tr><td class="text-muted">Tanggal Acara</td><td><strong><%= formatTanggal(pesanan.tanggal_acara) %></strong><%= pesanan.waktu_acara?' pukul '+pesanan.waktu_acara:'' %></td></tr>
+          <tr><td class="text-muted">Lokasi</td><td><%= pesanan.lokasi_acara %><%= pesanan.kota_acara?', '+pesanan.kota_acara:'' %></td></tr>
+          <tr><td class="text-muted">Jumlah Porsi</td><td><strong><%= pesanan.jumlah_porsi %></strong> porsi</td></tr>
+          <tr><td class="text-muted">Total Harga</td><td><strong class="fs-5" style="color:var(--primary)"><%= formatRupiah(pesanan.total_harga) %></strong></td></tr>
+          <% if (pesanan.catatan) { %><tr><td class="text-muted">Catatan</td><td class="fst-italic"><%= pesanan.catatan %></td></tr><% } %>
+          <% if (pesanan.alasan_batal) { %><tr><td class="text-muted">Alasan Batal</td><td class="text-danger"><%= pesanan.alasan_batal %></td></tr><% } %>
+        </table>
+      </div>
+
+      <!-- STEP 2: Pelanggan wajib bayar setelah dikonfirmasi -->
+      <% if (pesanan.status === 'dikonfirmasi' && user.role === 'pelanggan') {
+        const totalBayarLunas = pembayaran.reduce((s,pb)=>pb.status==='lunas'?s+parseFloat(pb.jumlah):s, 0);
+        const sisaBayar = parseFloat(pesanan.total_harga) - totalBayarLunas;
+      %>
+      <div class="card p-4 mb-3 border-warning" style="border-width:2px!important">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <i class="bi bi-exclamation-circle-fill fs-2 text-warning"></i>
+          <div>
+            <h6 class="fw-bold mb-0 text-warning">Wajib Bayar Lunas!</h6>
+            <p class="text-muted small mb-0">Pesanan Anda sudah dikonfirmasi. Silakan lakukan pembayaran lunas sebesar <strong><%= formatRupiah(sisaBayar) %></strong> dan upload bukti transfer.</p>
+          </div>
+        </div>
+        <button class="btn btn-warning fw-semibold" data-bs-toggle="modal" data-bs-target="#modalBayar">
+          <i class="bi bi-credit-card me-2"></i>Bayar Sekarang & Upload Bukti
+        </button>
+      </div>
+      <% } %>
+
+      <!-- STEP 6: Pelanggan konfirmasi terima -->
+      <% if (pesanan.status === 'sedang_dikirim' && user.role === 'pelanggan') { %>
+      <div class="card p-4 mb-3 border-success" style="border-width:2px!important">
+        <div class="d-flex align-items-center gap-3">
+          <i class="bi bi-truck fs-2 text-success"></i>
+          <div class="flex-grow-1">
+            <h6 class="fw-bold mb-1 text-success">Pesanan Sedang Dalam Pengiriman!</h6>
+            <p class="text-muted small mb-0">Kurir sedang menuju lokasi Anda. Klik tombol setelah pesanan diterima.</p>
+          </div>
+          <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalTerima">
+            <i class="bi bi-check2-circle me-1"></i>Pesanan Diterima
+          </button>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- Pengiriman -->
+      <% if (pesanan.pengiriman_id && pesanan.nama_kurir) { %>
+      <div class="card p-4 mb-3">
+        <h6 class="fw-bold mb-3"><i class="bi bi-truck me-2"></i>Info Pengiriman</h6>
+        <table class="table table-sm table-borderless small">
+          <tr><td class="text-muted" width="120">Kurir</td><td><strong><%= pesanan.nama_kurir %></strong> · <%= pesanan.hp_kurir %></td></tr>
+          <tr><td class="text-muted">Kendaraan</td><td><%= pesanan.kendaraan %> — <%= pesanan.no_plat %></td></tr>
+          <% if (pesanan.lokasi_terkini) { %><tr><td class="text-muted">Lokasi</td><td><%= pesanan.lokasi_terkini %></td></tr><% } %>
+          <% if (pesanan.waktu_berangkat) { %><tr><td class="text-muted">Berangkat</td><td><%= new Date(pesanan.waktu_berangkat).toLocaleString('id-ID') %></td></tr><% } %>
+        </table>
+        <% if (pesanan.bukti_kirim) { %>
+          <p class="small fw-semibold mb-1">Bukti Pengiriman:</p>
+          <img src="<%= pesanan.bukti_kirim %>" class="img-thumbnail" style="max-height:180px">
+        <% } %>
+      </div>
+      <% } %>
+
+      <!-- Menu -->
+      <div class="card p-4 mb-3">
+        <h6 class="fw-bold mb-3">Menu Paket</h6>
+        <% const grouped={};
+           menuItems.forEach(m=>{if(!grouped[m.kategori])grouped[m.kategori]=[];grouped[m.kategori].push(m);});
+           Object.entries(grouped).forEach(([kat,items])=>{ %>
+          <div class="mb-2">
+            <span class="badge bg-light text-dark text-capitalize mb-1"><%= kat.replace('_',' ') %></span>
+            <ul class="list-unstyled ms-2 mb-0">
+              <% items.forEach(m=>{%><li class="small text-muted"><i class="bi bi-dot"></i><%= m.nama_menu %></li><%}) %>
+            </ul>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- Ulasan -->
+      <% if (pesanan.status === 'selesai' && user.role === 'pelanggan') { %>
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-star me-2"></i>Ulasan</h6>
+        <% if (ulasan) { %>
+          <div class="d-flex gap-1 mb-2">
+            <% for(let i=1;i<=5;i++) { %><i class="bi bi-star<%= i<=ulasan.rating?'-fill':'' %> text-warning fs-5"></i><% } %>
+          </div>
+          <p class="text-muted small"><%= ulasan.komentar||'(Tidak ada komentar)' %></p>
+        <% } else { %>
+          <form method="POST" action="/pemesanan/<%= pesanan.id %>/ulasan">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Rating</label>
+              <div class="d-flex gap-3">
+                <% for(let i=1;i<=5;i++){%>
+                  <div class="form-check">
+                    <input type="radio" class="form-check-input" name="rating" value="<%= i %>" id="r<%= i %>" required>
+                    <label class="form-check-label" for="r<%= i %>"><%= i %> ⭐</label>
+                  </div>
+                <%}%>
+              </div>
+            </div>
+            <textarea name="komentar" class="form-control mb-3" rows="2" placeholder="Ceritakan pengalaman Anda..."></textarea>
+            <button class="btn btn-warning btn-sm">Kirim Ulasan</button>
+          </form>
+        <% } %>
+      </div>
+      <% } %>
+    </div>
+
+    <!-- KANAN: Pembayaran -->
+    <div class="col-md-4">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-credit-card me-2"></i>Status Pembayaran</h6>
+        <%
+          let totalLunas = 0;
+          pembayaran.forEach(pb=>{ if(pb.status==='lunas') totalLunas+=parseFloat(pb.jumlah); });
+          const sisaTagihan = parseFloat(pesanan.total_harga) - totalLunas;
+        %>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Total</span>
+          <span class="fw-bold"><%= formatRupiah(pesanan.total_harga) %></span>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Terbayar</span>
+          <span class="text-success fw-bold"><%= formatRupiah(totalLunas) %></span>
+        </div>
+        <div class="d-flex justify-content-between small border-top pt-2 mt-1">
+          <span class="fw-bold">Sisa</span>
+          <span class="fw-bold <%= sisaTagihan>0?'text-danger':'text-success' %>">
+            <%= sisaTagihan>0 ? formatRupiah(sisaTagihan) : '✓ Lunas' %>
+          </span>
+        </div>
+
+        <% if (pembayaran.length > 0) { %>
+        <div class="mt-3">
+          <p class="small fw-semibold mb-2">Riwayat:</p>
+          <% const badgeMap={menunggu:'warning',menunggu_verifikasi:'info',lunas:'success',gagal:'danger'};
+             pembayaran.forEach(pb=>{ %>
+          <div class="border rounded p-2 mb-2">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="fw-semibold small"><%= formatRupiah(pb.jumlah) %></span>
+              <span class="badge bg-<%= badgeMap[pb.status]||'secondary' %>" style="font-size:.65rem">
+                <%= pb.status.replace(/_/g,' ') %>
+              </span>
+            </div>
+            <div class="text-muted" style="font-size:.72rem"><%= pb.metode.replace(/_/g,' ') %><% if(pb.keterangan){%> · <%=pb.keterangan%><%}%></div>
+            <% if (pb.bukti_foto) { %>
+              <a href="<%= pb.bukti_foto %>" target="_blank">
+                <img src="<%= pb.bukti_foto %>" class="img-thumbnail mt-1" style="max-height:70px;object-fit:cover">
+              </a>
+            <% } %>
+            <% if (pb.catatan_verifikasi) { %>
+              <div class="text-muted fst-italic mt-1" style="font-size:.7rem">Admin: <%= pb.catatan_verifikasi %></div>
+            <% } %>
+          </div>
+          <% }) %>
+        </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Bayar -->
+<div class="modal fade" id="modalBayar" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="/pemesanan/<%= pesanan.id %>/bayar" enctype="multipart/form-data">
+        <div class="modal-header bg-warning">
+          <h6 class="modal-title fw-bold"><i class="bi bi-credit-card me-2"></i>Upload Bukti Pembayaran</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info small">Lakukan transfer ke rekening BCA <strong>1234567890</strong> a/n Katering App, lalu upload bukti di bawah.</div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Jumlah Transfer (Rp) *</label>
+            <input type="number" name="jumlah" class="form-control" required min="1"
+                   value="<%= parseFloat(pesanan.total_harga) - pembayaran.reduce((s,pb)=>pb.status==='lunas'?s+parseFloat(pb.jumlah):s,0) %>">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Metode *</label>
+            <select name="metode" class="form-select" required>
+              <option value="transfer_bank">Transfer Bank</option>
+              <option value="qris">QRIS</option>
+              <option value="dompet_digital">Dompet Digital (OVO/GoPay/Dana)</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">No. Referensi Transaksi</label>
+            <input type="text" name="nomor_referensi" class="form-control" placeholder="opsional">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Foto Bukti Transfer *</label>
+            <!--input type="file" name="bukti_foto" class="form-control" accept="image/*" required-->
+              <input type="file" name="bukti_foto" class="form-control" accept=".jpg, .jpeg, .png, .webp" required>
+
+            <div class="form-text">JPG/PNG/WebP maks 5MB. Wajib diupload agar admin bisa verifikasi.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-warning btn-sm fw-semibold">
+            <i class="bi bi-send me-1"></i>Kirim Bukti Pembayaran
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Konfirmasi Terima -->
+<div class="modal fade" id="modalTerima" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h6 class="modal-title fw-bold"><i class="bi bi-check2-circle me-2"></i>Konfirmasi Terima</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-3">
+        <i class="bi bi-box2-heart fs-1 text-success d-block mb-2"></i>
+        <p class="fw-semibold mb-1">Pesanan sudah diterima?</p>
+        <p class="text-muted small">Status akan berubah menjadi <strong>Selesai</strong>.</p>
+      </div>
+      <div class="modal-footer justify-content-center gap-2">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Belum</button>
+        <form method="POST" action="/pemesanan/<%= pesanan.id %>/terima">
+          <button type="submit" class="btn btn-success btn-sm px-4">Ya, Sudah Diterima!</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,72 @@
+<%- include('../partials/head') %>
+<div class="d-flex">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="flex-grow-1">
+    <%- include('../partials/navbar') %>
+    <div class="container-fluid p-4">
+      <h4 class="fw-bold mb-4">Dashboard Admin</h4>
+
+      <!-- Stats -->
+      <div class="row g-3 mb-4">
+        <% [
+          {label:'Total Pesanan',      val:stats.total_pesanan,  icon:'bi-bag-check',    color:'var(--primary)'},
+          {label:'Menunggu Konfirmasi',val:stats.menunggu,       icon:'bi-hourglass',    color:'#ffc107'},
+          {label:'Diproses (Dapur)',   val:stats.diproses,       icon:'bi-fire',         color:'#fd7e14'},
+          {label:'Sedang Dikirim',     val:stats.sedang_dikirim, icon:'bi-truck',        color:'#0d6efd'},
+          {label:'Selesai',            val:stats.selesai,        icon:'bi-check-circle', color:'#198754'},
+          {label:'Total Pelanggan',    val:stats.total_pelanggan,icon:'bi-people',       color:'#6f42c1'},
+        ].forEach(s=>{ %>
+        <div class="col-6 col-md-2">
+          <div class="card p-3 text-center h-100" style="border-top:3px solid <%= s.color %>">
+            <i class="bi <%= s.icon %> fs-3 mb-1" style="color:<%= s.color %>"></i>
+            <div class="fs-2 fw-bold"><%= s.val %></div>
+            <div class="text-muted" style="font-size:.7rem"><%= s.label %></div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-8">
+          <div class="card p-4">
+            <div class="d-flex justify-content-between mb-3">
+              <h6 class="fw-bold mb-0">Pesanan Terbaru</h6>
+              <a href="/admin/pesanan" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle small">
+                <thead><tr><th>No. Pesanan</th><th>Pelanggan</th><th>Paket</th><th>Total</th><th>Status</th></tr></thead>
+                <tbody>
+                <% recentPesanan.forEach(p => {
+                  const s = statusLabel[p.status]||{text:p.status,class:'secondary'}; %>
+                  <tr>
+                    <td><a href="/pemesanan/<%= p.id %>" class="text-decoration-none fw-semibold"><%= p.nomor_pesanan %></a></td>
+                    <td><%= p.nama_pelanggan %></td>
+                    <td><%= p.nama_paket %></td>
+                    <td class="fw-semibold"><%= formatRupiah(p.total_harga) %></td>
+                    <td><span class="badge bg-<%= s.class %>"><%= s.text %></span></td>
+                  </tr>
+                <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-4 h-100">
+            <h6 class="fw-bold mb-3">Total Pendapatan</h6>
+            <div class="fs-2 fw-bold" style="color:var(--primary)"><%= formatRupiah(totalPendapatan) %></div>
+            <p class="text-muted small mt-1">Dari pembayaran yang telah lunas</p>
+            <hr>
+            <div class="d-grid gap-2">
+              <a href="/admin/pesanan" class="btn btn-primary btn-sm">Kelola Pesanan</a>
+              <a href="/admin/laporan" class="btn btn-outline-secondary btn-sm">Lihat Laporan</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

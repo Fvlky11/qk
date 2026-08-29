@@ -1,0 +1,203 @@
+<%- include('../partials/head') %>
+<div class="d-flex">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="flex-grow-1">
+    <%- include('../partials/navbar') %>
+    <div class="container-fluid p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold mb-0">Laporan</h4>
+        <div class="d-flex gap-2">
+          <a href="/admin/laporan/excel?dari=<%= tglDari %>&sampai=<%= tglSampai %>"
+             class="btn btn-success btn-sm px-3">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+          </a>
+          <a href="/admin/laporan/pdf?dari=<%= tglDari %>&sampai=<%= tglSampai %>"
+             class="btn btn-danger btn-sm px-3">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+          </a>
+        </div>
+      </div>
+
+      <!-- Filter Periode -->
+      <div class="card p-3 mb-4">
+        <form method="GET" class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold mb-1">Dari Tanggal</label>
+            <input type="date" name="dari" class="form-control form-control-sm" value="<%= tglDari %>">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold mb-1">Sampai Tanggal</label>
+            <input type="date" name="sampai" class="form-control form-control-sm" value="<%= tglSampai %>">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-primary btn-sm w-100">Tampilkan</button>
+          </div>
+          <!-- Shortcut periode -->
+          <div class="col-md-4 d-flex gap-1 flex-wrap">
+            <a href="/admin/laporan?dari=<%= new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0] %>&sampai=<%= new Date().toISOString().split('T')[0] %>"
+               class="btn btn-outline-secondary btn-sm">Bulan Ini</a>
+            <a href="/admin/laporan?dari=<%= new Date(new Date().getFullYear(), new Date().getMonth()-1, 1).toISOString().split('T')[0] %>&sampai=<%= new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0] %>"
+               class="btn btn-outline-secondary btn-sm">Bulan Lalu</a>
+            <a href="/admin/laporan?dari=<%= new Date().getFullYear() %>-01-01&sampai=<%= new Date().toISOString().split('T')[0] %>"
+               class="btn btn-outline-secondary btn-sm">Tahun Ini</a>
+          </div>
+        </form>
+      </div>
+
+      <!-- Kartu Ringkasan -->
+      <div class="row g-3 mb-4">
+        <% [
+          {label:'Total Pesanan',   val:ringkasan.total_pesanan,  icon:'bi-bag-check',    color:'var(--primary)'},
+          {label:'Pesanan Selesai', val:ringkasan.pesanan_selesai,icon:'bi-check-circle', color:'#198754'},
+          {label:'Pesanan Batal',   val:ringkasan.pesanan_batal,  icon:'bi-x-circle',     color:'#dc3545'},
+          {label:'Total Porsi',     val:parseInt(ringkasan.total_porsi).toLocaleString('id-ID'),icon:'bi-people',color:'#6f42c1'},
+        ].forEach(s => { %>
+        <div class="col-6 col-md-3">
+          <div class="card p-3 text-center h-100" style="border-top:3px solid <%= s.color %>">
+            <i class="bi <%= s.icon %> fs-2 mb-1" style="color:<%= s.color %>"></i>
+            <div class="fs-3 fw-bold"><%= s.val %></div>
+            <div class="text-muted small"><%= s.label %></div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+
+      <!-- Omzet & Pendapatan -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="card p-4 h-100" style="border-left:4px solid var(--primary)">
+            <div class="text-muted small mb-1">Total Omzet (pesanan selesai)</div>
+            <div class="fs-2 fw-bold" style="color:var(--primary)">
+              <%= formatRupiah(ringkasan.total_omzet) %>
+            </div>
+            <div class="text-muted small mt-1">
+              Rata-rata per pesanan: <%= formatRupiah(ringkasan.rata_omzet) %>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card p-4 h-100" style="border-left:4px solid #198754">
+            <div class="text-muted small mb-1">Total Pembayaran Diterima</div>
+            <div class="fs-2 fw-bold text-success">
+              <%= formatRupiah(totalDiterima) %>
+            </div>
+            <div class="text-muted small mt-1">Dari transaksi yang sudah diverifikasi</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <!-- Per Paket -->
+        <div class="col-md-6">
+          <div class="card p-4 h-100">
+            <h6 class="fw-bold mb-3">Penjualan Per Paket</h6>
+            <% if (perPaket.length === 0) { %>
+              <p class="text-muted small">Tidak ada data</p>
+            <% } %>
+            <% perPaket.forEach((p, i) => {
+              const maxOmzet = Math.max(...perPaket.map(x => parseFloat(x.total_omzet)||0));
+              const pct = maxOmzet > 0 ? Math.round((parseFloat(p.total_omzet)||0)/maxOmzet*100) : 0;
+            %>
+            <div class="mb-3">
+              <div class="d-flex justify-content-between small mb-1">
+                <span class="fw-semibold"><%= p.nama_paket %></span>
+                <span class="text-muted"><%= p.jumlah_pesanan %> pesanan · <%= parseInt(p.total_porsi).toLocaleString('id-ID') %> porsi</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:8px">
+                  <div class="progress-bar" style="width:<%= pct %>%;background:var(--primary)"></div>
+                </div>
+                <span class="small fw-bold text-nowrap"><%= formatRupiah(p.total_omzet) %></span>
+              </div>
+            </div>
+            <% }) %>
+          </div>
+        </div>
+
+        <!-- Per Status -->
+        <div class="col-md-6">
+          <div class="card p-4 h-100">
+            <h6 class="fw-bold mb-3">Status Pesanan</h6>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead class="table-light">
+                  <tr><th>Status</th><th class="text-center">Jumlah</th><th class="text-end">Nilai</th></tr>
+                </thead>
+                <tbody>
+                  <% const statusColor = {
+                    selesai:'success', dibatalkan:'danger', dikonfirmasi:'info',
+                    menunggu_konfirmasi:'warning', diproses:'info', sedang_dikirim:'primary', siap_kirim:'primary'
+                  } %>
+                  <% perStatus.forEach(s => { %>
+                  <tr>
+                    <td><span class="badge bg-<%= statusColor[s.status]||'secondary' %>"><%= s.status.replace(/_/g,' ') %></span></td>
+                    <td class="text-center fw-bold"><%= s.jumlah %></td>
+                    <td class="text-end small"><%= formatRupiah(s.nilai) %></td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pendapatan Harian -->
+        <div class="col-12">
+          <div class="card p-4">
+            <h6 class="fw-bold mb-3">Pendapatan Harian</h6>
+            <% if (pembayaranHarian.length === 0) { %>
+              <p class="text-muted small">Tidak ada transaksi di periode ini</p>
+            <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle">
+                <thead class="table-light">
+                  <tr><th>Tanggal</th><th class="text-center">Transaksi</th><th class="text-end">Total Diterima</th></tr>
+                </thead>
+                <tbody>
+                  <% pembayaranHarian.forEach(h => { %>
+                  <tr>
+                    <td class="small"><%= new Date(h.tgl).toLocaleDateString('id-ID',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) %></td>
+                    <td class="text-center"><%= h.jumlah_transaksi %></td>
+                    <td class="text-end fw-bold text-success"><%= formatRupiah(h.total) %></td>
+                  </tr>
+                  <% }) %>
+                  <tr class="table-light fw-bold">
+                    <td>TOTAL</td>
+                    <td class="text-center"><%= pembayaranHarian.reduce((s,h)=>s+parseInt(h.jumlah_transaksi),0) %></td>
+                    <td class="text-end text-success"><%= formatRupiah(pembayaranHarian.reduce((s,h)=>s+parseFloat(h.total),0)) %></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Top Pelanggan -->
+        <div class="col-md-6">
+          <div class="card p-4">
+            <h6 class="fw-bold mb-3">Top 5 Pelanggan</h6>
+            <% if (topPelanggan.length === 0) { %>
+              <p class="text-muted small">Tidak ada data</p>
+            <% } %>
+            <% topPelanggan.forEach((p, i) => { %>
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white"
+                   style="width:36px;height:36px;min-width:36px;background:var(--primary);font-size:.9rem">
+                <%= i+1 %>
+              </div>
+              <div class="flex-grow-1">
+                <div class="fw-semibold small"><%= p.nama %></div>
+                <div class="text-muted" style="font-size:.72rem"><%= p.no_hp %> · <%= p.jumlah_pesanan %> pesanan</div>
+              </div>
+              <div class="fw-bold small text-success"><%= formatRupiah(p.total_belanja) %></div>
+            </div>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

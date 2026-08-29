@@ -1,0 +1,120 @@
+<%- include('../partials/head') %>
+<%- include('../partials/navbar') %>
+
+<div class="container py-4" style="max-width:720px">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/pemesanan" class="text-decoration-none">Pesanan</a></li>
+      <li class="breadcrumb-item active">Buat Pesanan</li>
+    </ol>
+  </nav>
+  <h4 class="fw-bold mb-4">Buat Pesanan Baru</h4>
+
+  <% if (error) { %>
+    <div class="alert alert-danger"><i class="bi bi-exclamation-circle me-2"></i><%= error %></div>
+  <% } %>
+
+  <form method="POST" action="/pemesanan" id="formPesan">
+    <!-- Pilih paket -->
+    <div class="card p-4 mb-3">
+      <h6 class="fw-bold mb-3">1. Pilih Paket Katering</h6>
+      <div class="row g-3">
+        <% paket.forEach(p => { %>
+        <div class="col-md-4">
+          <input type="radio" class="btn-check" name="paket_id" id="paket_<%= p.id %>"
+                 value="<%= p.id %>" required
+                 data-harga="<%= p.harga_per_porsi %>"
+                 data-min="<%= p.min_porsi %>"
+                 data-max="<%= p.max_porsi || 9999 %>">
+          <label class="btn btn-outline-secondary w-100 text-start p-3 h-100" for="paket_<%= p.id %>">
+            <div class="fw-bold"><%= p.nama_paket %></div>
+            <div class="text-muted small mb-1"><%= p.deskripsi || '' %></div>
+            <div class="fw-bold" style="color:var(--primary)"><%= formatRupiah(p.harga_per_porsi) %>/porsi</div>
+            <div class="text-muted" style="font-size:.75rem">Min. <%= p.min_porsi %> porsi</div>
+          </label>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <!-- Detail acara -->
+    <div class="card p-4 mb-3">
+      <h6 class="fw-bold mb-3">2. Detail Acara</h6>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Tanggal Acara <span class="text-danger">*</span></label>
+          <input type="date" name="tanggal_acara" class="form-control" required
+                 min="<%= new Date(Date.now()+86400000).toISOString().split('T')[0] %>">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Waktu Acara</label>
+          <input type="time" name="waktu_acara" class="form-control">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold small">Lokasi Acara <span class="text-danger">*</span></label>
+          <textarea name="lokasi_acara" class="form-control" rows="2" placeholder="Alamat lengkap lokasi acara" required></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Kota</label>
+          <input type="text" name="kota_acara" class="form-control" placeholder="Yogyakarta">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Jumlah Porsi <span class="text-danger">*</span></label>
+          <input type="number" name="jumlah_porsi" id="jumlahPorsi" class="form-control"
+                 placeholder="100" min="1" required oninput="hitungTotal()">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold small">Catatan (opsional)</label>
+          <textarea name="catatan" class="form-control" rows="2"
+                    placeholder="Alergi makanan, permintaan khusus, dll."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ringkasan -->
+    <div class="card p-4 mb-3 bg-light">
+      <h6 class="fw-bold mb-3">Ringkasan Biaya</h6>
+      <table class="table table-sm table-borderless mb-0">
+        <tr>
+          <td class="text-muted">Harga per porsi</td>
+          <td class="text-end fw-semibold" id="hargaPorsi">—</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Jumlah porsi</td>
+          <td class="text-end fw-semibold" id="jumlahPorsiDisplay">—</td>
+        </tr>
+        <tr class="border-top">
+          <td class="fw-bold">Total</td>
+          <td class="text-end fw-bold fs-5" id="totalHarga" style="color:var(--primary)">—</td>
+        </tr>
+      </table>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100 py-3 fw-bold fs-5">
+      <i class="bi bi-bag-check me-2"></i>Buat Pesanan
+    </button>
+  </form>
+</div>
+
+<script>
+let selectedPaket = null;
+
+document.querySelectorAll('input[name=paket_id]').forEach(r => {
+  r.addEventListener('change', () => {
+    selectedPaket = { harga: parseFloat(r.dataset.harga), min: r.dataset.min, max: r.dataset.max };
+    document.getElementById('jumlahPorsi').min = selectedPaket.min;
+    hitungTotal();
+  });
+});
+
+function hitungTotal() {
+  const porsi = parseInt(document.getElementById('jumlahPorsi').value) || 0;
+  if (!selectedPaket || !porsi) return;
+  const total = porsi * selectedPaket.harga;
+  const fmt = (n) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n);
+  document.getElementById('hargaPorsi').textContent = fmt(selectedPaket.harga);
+  document.getElementById('jumlahPorsiDisplay').textContent = porsi + ' porsi';
+  document.getElementById('totalHarga').textContent = fmt(total);
+}
+</script>
+<%- include('../partials/footer') %>

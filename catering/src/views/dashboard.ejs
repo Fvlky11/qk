@@ -1,0 +1,88 @@
+<%- include('partials/head') %>
+<%- include('partials/navbar') %>
+<div class="container py-4">
+  <div class="mb-4">
+    <h4 class="fw-bold mb-0">Selamat datang, <%= user.nama.split(' ')[0] %>! 👋</h4>
+    <p class="text-muted small mb-0">Kelola pesanan katering Anda di sini.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4">
+      <div class="card p-3 text-center stat-card">
+        <i class="bi bi-bag-check fs-2 mb-1" style="color:var(--primary)"></i>
+        <div class="fs-2 fw-bold"><%= stats.total %></div>
+        <div class="text-muted small">Total Pesanan</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="card p-3 text-center" style="border-top:3px solid #0dcaf0">
+        <i class="bi bi-clock-history fs-2 text-info mb-1"></i>
+        <div class="fs-2 fw-bold"><%= stats.aktif %></div>
+        <div class="text-muted small">Pesanan Aktif</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="card p-3 text-center" style="border-top:3px solid #198754">
+        <i class="bi bi-check-circle fs-2 text-success mb-1"></i>
+        <div class="fs-2 fw-bold"><%= stats.selesai %></div>
+        <div class="text-muted small">Selesai</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notif: Wajib Bayar -->
+  <% if (perluBayar && perluBayar.length > 0) { %>
+  <div class="alert alert-warning d-flex align-items-center gap-3 mb-3">
+    <i class="bi bi-exclamation-circle-fill fs-3 text-warning"></i>
+    <div class="flex-grow-1">
+      <div class="fw-bold">Pesanan Menunggu Pembayaran Lunas!</div>
+      <div class="small">Pesanan Anda sudah dikonfirmasi admin. Segera lakukan pembayaran untuk diproses.</div>
+    </div>
+    <a href="/pemesanan/<%= perluBayar[0].id %>" class="btn btn-warning btn-sm fw-semibold">Bayar Sekarang</a>
+  </div>
+  <% } %>
+
+  <!-- Notif: Sedang Dikirim -->
+  <% if (sedangDikirim && sedangDikirim.length > 0) { %>
+  <div class="alert alert-success d-flex align-items-center gap-3 mb-3">
+    <i class="bi bi-truck fs-3 text-success"></i>
+    <div class="flex-grow-1">
+      <div class="fw-bold">Pesanan Sedang Dikirim!</div>
+      <div class="small">Kurir sedang menuju lokasi Anda. Klik konfirmasi setelah pesanan diterima.</div>
+    </div>
+    <a href="/pemesanan/<%= sedangDikirim[0].id %>" class="btn btn-success btn-sm fw-semibold">Konfirmasi Terima</a>
+  </div>
+  <% } %>
+
+  <!-- Aksi Cepat -->
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="card p-4 h-100">
+        <h6 class="fw-bold mb-3">Aksi Cepat</h6>
+        <div class="d-grid gap-2">
+          <a href="/pemesanan/buat" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Buat Pesanan Baru
+          </a>
+          <a href="/pemesanan" class="btn btn-outline-secondary">
+            <i class="bi bi-list-ul me-2"></i>Lihat Semua Pesanan
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card p-4 h-100">
+        <h6 class="fw-bold mb-3">Alur Pemesanan</h6>
+        <ol class="small text-muted mb-0 ps-3">
+          <li class="mb-1">Buat pesanan & pilih paket</li>
+          <li class="mb-1">Tunggu konfirmasi dari admin</li>
+          <li class="mb-1">Bayar lunas & upload bukti transfer</li>
+          <li class="mb-1">Admin verifikasi → pesanan diproses</li>
+          <li class="mb-1">Kurir mengantarkan pesanan</li>
+          <li>Konfirmasi pesanan diterima</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>
